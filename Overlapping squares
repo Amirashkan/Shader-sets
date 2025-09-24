@@ -1,0 +1,76 @@
+#ifdef GL_ES
+precision mediump float; // Required for WebGL fragment shaders
+#endif
+
+// ====================
+// Uniforms
+// ====================
+uniform vec2 resolution;  // Screen resolution (width, height)
+uniform float time;       // Animation time
+
+// ====================
+// Hash & Noise Utilities
+// ====================
+
+// Simple 1D hash function
+float hash(float n) {
+    return fract(sin(n) * 43758.5453);
+}
+
+// 2D value noise
+float noise(vec2 x) {
+    vec2 p = floor(x);      // Cell coordinates
+    vec2 f = fract(x);      // Local coordinates
+    f = f * f * (3.0 - 2.0 * f); // Smoothstep curve
+
+    float n = p.x + p.y * 157.0;
+    float a = hash(n);
+    float b = hash(n + 1.0);
+    float c = hash(n + 157.0);
+    float d = hash(n + 158.0);
+
+    // Bilinear interpolation
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+// ====================
+// Pattern Function
+// ====================
+
+// Creates a small cross-like shape in [-1,1] space
+float pattern(vec2 p) {
+    p = mod(p, 2.0) - 1.0;
+    return 1.0 - step(0.50, abs(p.x) + abs(p.y) - 0.40);
+}
+
+// ====================
+// Main Shader
+// ====================
+void main(void) {
+    // Normalize coordinates to [-aspect, aspect] in X, [-1,1] in Y
+    vec2 uv = (gl_FragCoord.xy * 2.0 - resolution.xy) / resolution.y;
+    vec3 color = vec3(0.0);
+
+    // Loop over 40 layers for complex pattern
+    for (int i = 0; i < 40; i++) {
+        float speed = 1.0 + float(i) * 0.1;
+
+        // Layer offset with noise
+        vec2 p = uv + noise(vec2(float(i), 0.0)) * 5.0;
+        p += vec2(sin(time * 0.01 * speed), cos(time * 0.05 * speed));
+
+        // Scale layer randomly
+        float size = mix(0.01, 0.99, noise(vec2(float(i), 1.0)));
+        p /= size;
+
+        // Evaluate pattern
+        float val = pattern(p);
+
+        // Invert color if pattern active
+        if (val > 0.95) {
+            color = 2.5 - color;
+        }
+    }
+
+    gl_FragColor = vec4(color, 1.0);
+}
