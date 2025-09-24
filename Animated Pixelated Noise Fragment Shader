@@ -1,0 +1,93 @@
+#version 330 core
+
+// =============================================================================
+// ANIMATED PIXELATED NOISE FRAGMENT SHADER
+// =============================================================================
+// Creates animated blocky/pixelated noise patterns with discrete rectangular
+// blocks of varying grayscale values. Uses multi-octave noise with floor()
+// quantization to create digital, glitch-like animated textures.
+// =============================================================================
+
+uniform float time;
+uniform vec2 resolution;
+
+out vec4 fragColor;
+
+/**
+ * Pseudo-random number generator
+ * Creates deterministic noise based on 2D coordinates
+ */
+float random(vec2 st) {
+    return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+}
+
+/**
+ * Multi-octave noise pattern generator
+ * Creates complex pixelated patterns by layering multiple scales of 
+ * quantized noise with time-based animation
+ */
+float pattern(vec2 uv, float t) {
+    float accumulator = 0.0;
+    float scale = 1.0;
+    
+    // Generate 5 octaves of noise at different scales
+    for (int i = 0; i < 5; i++) {
+        // Independent phase for each octave to avoid synchronized movement
+        vec2 animatedPosition = uv * scale + vec2(
+            sin(t * 0.1 * scale + float(i) * 1.5), 
+            cos(t * 0.1 * scale + float(i) * 2.0)
+        );
+        
+        // Sample random values at discrete grid positions (creates blocky effect)
+        float randomValue = random(floor(animatedPosition));
+        
+        // Accumulate with decreasing influence for higher frequencies
+        accumulator += randomValue / scale;
+        
+        // Use power of 2 for better grid alignment and less aliasing
+        scale *= 2.0;
+    }
+    
+    return accumulator;
+}
+
+/**
+ * Digital contrast enhancement
+ * Applies oscillating functions to create high-contrast blocky patterns
+ * with discrete grayscale levels
+ */
+float enhanceDigitalContrast(float field, float t) {
+    // Create multiple grayscale levels instead of pure binary
+    float levels = 8.0; // Number of grayscale levels
+    
+    float contrastA = floor((sin(field * 6.283 + t * 0.5) * 0.5 + 0.5) * levels) / levels;
+    float contrastB = floor((cos(field * 6.283 - t * 0.3) * 0.5 + 0.5) * levels) / levels;
+    
+    // Combine for quantized grayscale effect
+    float result = contrastA * (1.0 - contrastB * 0.1);
+    
+    return result;
+}
+
+void main() {
+    // Convert fragment coordinates to normalized UV coordinates (0 to 1)
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    
+    // Correct for aspect ratio to maintain square blocks
+    uv.x *= resolution.x / resolution.y;
+    
+    // Resolution-based scale for consistent block size across different screens
+    float baseScale = 4.0 * (resolution.y / 800.0); // Normalize to 800px reference
+    
+    // Controlled animation speed to prevent excessive flickering
+    float animationTime = time * 0.6;
+
+    // Generate base pixelated pattern with resolution-aware scaling
+    float patternField = pattern(uv * baseScale, animationTime);
+
+    // Apply digital contrast enhancement with quantized grayscale levels
+    float finalPattern = enhanceDigitalContrast(patternField, animationTime);
+
+    // Output as grayscale with full opacity
+    fragColor = vec4(vec3(finalPattern), 1.0);
+}
