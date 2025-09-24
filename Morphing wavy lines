@@ -1,0 +1,69 @@
+#ifdef GL_ES
+precision mediump float;   // Required for WebGL fragment shaders
+#endif
+
+// ====================
+// Uniforms
+// ====================
+uniform float time;        // Animation time
+uniform vec2 resolution;   // Screen resolution (width, height)
+
+// ====================
+// Hash & Noise Utilities
+// ====================
+
+// Simple fast hash based on dot product + sine
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// 2D value noise with smooth interpolation
+float noise(vec2 p) {
+    vec2 i = floor(p);   // Cell coordinates
+    vec2 f = fract(p);   // Local position inside cell
+
+    // Corner values
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+
+    // Smooth interpolation curve
+    vec2 u = f * f * (3.0 - 2.0 * f);
+
+    // Bilinear interpolation
+    return mix(a, b, u.x) 
+         + (c - a) * u.y * (1.0 - u.x) 
+         + (d - b) * u.x * u.y;
+}
+
+// ====================
+// Main Shader
+// ====================
+void main() {
+    // Normalize pixel coordinates
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+
+    // Noise scale factor
+    float scale = 10.0;
+
+    // Animated noise offset
+    float n = noise(uv * scale + vec2(time * 0.5, time * 0.3));
+
+    // Vertical broken lines with noise distortion
+    float linesV = smoothstep(0.48, 0.50, fract(uv.x * scale + n * 3.0))
+                 - smoothstep(0.50, 0.52, fract(uv.x * scale + n * 5.0));
+
+    // Horizontal broken lines with noise distortion
+    float linesH = smoothstep(0.48, 0.50, fract(uv.y * scale + n * 5.0))
+                 - smoothstep(0.50, 0.52, fract(uv.y * scale + n * 5.0));
+
+    // Combine horizontal & vertical patterns
+    float pattern = max(linesV, linesH);
+
+    // Apply contrast boost
+    float color = pow(pattern, 3.0);
+
+    // Output grayscale color
+    gl_FragColor = vec4(vec3(color), 1.0);
+}
