@@ -1,0 +1,77 @@
+
+#version 330 core
+
+// =============================================================================
+// ORGANIC WAVY STRIPES FRAGMENT SHADER
+// =============================================================================
+// Creates animated wavy vertical stripes that undulate like zebra patterns,
+// wood grain, or flowing water. Uses noise to distort regular stripe patterns
+// into organic, flowing shapes.
+// =============================================================================
+
+uniform float time;
+uniform vec2 resolution;
+
+out vec4 fragColor;
+
+/**
+ * Hash function for pseudo-random number generation
+ */
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+/**
+ * Smooth 2D noise function
+ * Creates smooth, continuous noise by interpolating between random values
+ */
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+
+    // Sample the four corners of the grid cell
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+
+    // Smooth interpolation
+    vec2 u = f * f * (3.0 - 2.0 * f);
+
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+/**
+ * Quantizes a value into discrete steps
+ */
+float stepify(float x, float steps) {
+    return floor(x * steps) / steps;
+}
+
+float wavyVerticalStripes(vec2 uv, float scale, float t) {
+    // Generate noise with original UV to keep it independent of aspect ratio
+    float n = noise(uv * scale + vec2(t * 0.15, t * 0.93));
+    
+    // Apply aspect correction only to stripe calculation
+    vec2 correctedUV = uv;
+    correctedUV.x *= resolution.x / resolution.y;
+    
+    // Apply gentle distortion with reduced intensity for smoother flow
+    float x = correctedUV.x * scale + n * 0.15;
+
+    // Increase quantization steps for smoother transitions
+    float stepped = stepify(x, 8.0);
+
+    // Use wider smoothstep range for completely smooth stripes
+    return smoothstep(0.3, 0.7, fract(stepped));
+}
+
+void main() {
+    // Convert to UV coordinates
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    
+    // Generate wavy vertical stripes (aspect correction handled inside function)
+    float stripes = wavyVerticalStripes(uv, 50.0, time);
+    
+    fragColor = vec4(vec3(stripes), 1.0);
+}
