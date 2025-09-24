@@ -1,0 +1,97 @@
+#ifdef GL_ES
+precision mediump float;   // Required for WebGL fragment shaders
+#endif
+
+// ====================
+// Uniforms
+// ====================
+uniform float time;        // Animation time
+uniform vec2 resolution;   // Screen resolution (width, height)
+
+// ====================
+// Hash and Noise Utils
+// ====================
+
+// Simple 2D hash function based on dot product + sine
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// Value noise: pseudo-Perlin style 2D noise
+float noise(vec2 p) {
+    vec2 i = floor(p);   // Integer part (cell coordinates)
+    vec2 f = fract(p);   // Fractional part
+
+    // Hash corners of the cell
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+
+    // Smooth interpolation curve (fade)
+    vec2 u = f * f * (3.0 - 2.0 * f);
+
+    // Bilinear interpolation of corner values
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+// ====================
+// Step Quantization
+// ====================
+
+// Quantize a continuous value into discrete steps
+float stepify(float x, float steps) {
+    return floor(x * steps) / steps;
+}
+
+// ====================
+// Broken Line Patterns
+// ====================
+
+// Vertical stepwise lines with animated noise
+float brokenLinesV(vec2 uv, float scale, float t) {
+    float n = noise(uv * scale + vec2(t * 0.5, t * 0.3));
+    float x = uv.x * scale + n * 3.0;
+
+    // Quantize x into discrete steps
+    float stepped = stepify(x, 10.0);
+
+    // Thin vertical lines (contrast around center)
+    float line = smoothstep(0.48, 0.52, fract(stepped));
+
+    return line;
+}
+
+// Horizontal stepwise lines with animated noise
+float brokenLinesH(vec2 uv, float scale, float t) {
+    float n = noise(uv * scale + vec2(t * 0.7, t * 0.4));
+    float y = uv.y * scale + n * 3.0;
+
+    float stepped = stepify(y, 10.0);
+
+    // Thin horizontal lines (contrast around center)
+    float line = smoothstep(0.48, 0.52, fract(stepped));
+
+    return line;
+}
+
+// ====================
+// Main Shader Entry
+// ====================
+void main() {
+    // Normalize pixel coordinates to [0,1]
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    float scale = 15.0;
+
+    // Compute vertical & horizontal line patterns
+    float linesV = brokenLinesV(uv, scale, time);
+    float linesH = brokenLinesH(uv, scale, time);
+
+    // Combine patterns
+    float pattern = max(linesV, linesH);
+
+    // Increase contrast with power curve
+    float color = pow(pattern, 3.0);
+
+    gl_FragColor = vec4(vec3(color), 1.0);
+}
